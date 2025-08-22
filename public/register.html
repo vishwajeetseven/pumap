@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - PU Map</title>
+  <style>
+     body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f0f2f5;
+    }
+    .login-container {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      width: 320px;
+    }
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #333;
+    }
+    input {
+      width: 100%;
+      padding: 0.8rem;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 0.8rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .error {
+      color: #dc3545;
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 14px;
+    }
+    .switch-link {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 14px;
+    }
+    .switch-link a {
+      color: #007bff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2 style="text-align: center; margin-bottom: 1.5rem;">Register</h2>
+    <div class="form-group">
+      <label>Username:</label>
+      <input type="text" id="username" required>
+    </div>
+    <div class="form-group">
+      <label>Password:</label>
+      <input type="password" id="password" required>
+    </div>
+    <button onclick="handleRegister()">Register</button>
+    <div id="error-message" class="error"></div>
+    <div class="switch-link">
+      Already have an account? <a href="/login.html">Login here</a>
+    </div>
+  </div>
+
+  <script>
+    async function handleRegister() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorElement = document.getElementById('error-message');
+
+      try {
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Registration failed');
+        }
+
+        alert('Registration successful! Please login.');
+        window.location.href = '/login.html';
+      } catch (error) {
+        errorElement.textContent = error.message;
+      }
+    }
+  </script>
+</body>
+</html>

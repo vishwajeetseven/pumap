@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PU Interactive Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #map-container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            background: #f0f0f0;
+            touch-action: none;
+        }
+
+        #map-wrapper {
+            position: absolute;
+            transition: transform 0.3s ease-out;
+        }
+
+        #map-image {
+            display: block;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .annotation {
+            position: absolute;
+            color: red;
+            font-weight: bold;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            text-shadow: 1px 1px 2px white;
+            z-index: 2;
+        }
+
+        #login-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button id="auth-btn">Login</button>
+        <button id="zoom-in">+</button>
+        <button id="zoom-out">-</button>
+        <button id="rotate">↻</button>
+    </div>
+
+    <div id="login-modal">
+        <div class="modal-content">
+            <h2>Map Editor Login</h2>
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button id="login-btn">Login</button>
+            <button id="close-modal">Cancel</button>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map-wrapper">
+            <img id="map-image" 
+                 src="https://cdn.glitch.global/5bc9edf4-373c-47f7-9a1c-29acc401cd85/7l.webp" 
+                 alt="Map"
+                 width="2560"
+                 height="1440">
+        </div>
+    </div>
+
+    <script>
+        let scale = 1;
+        let rotation = 0;
+        let tx = 0;
+        let ty = 0;
+        let isDragging = false;
+        let startX, startY, initialTx, initialTy;
+        let touchStartDistance = null;
+        const mapWrapper = document.getElementById('map-wrapper');
+        const authBtn = document.getElementById('auth-btn');
+
+        // Transformation management
+        function updateTransform() {
+            mapWrapper.style.transform = `
+                translate(${tx}px, ${ty}px)
+                rotate(${rotation}deg)
+                scale(${scale})
+            `;
+        }
+
+        // Mouse events
+        document.getElementById('map-container').addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialTx = tx;
+            initialTy = ty;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            tx = initialTx + (e.clientX - startX) / scale;
+            ty = initialTy + (e.clientY - startY) / scale;
+            updateTransform();
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Touch events
+        document.getElementById('map-container').addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                startX = touch.clientX;
+                startY = touch.clientY;
+                initialTx = tx;
+                initialTy = ty;
+                isDragging = true;
+            } else if (e.touches.length === 2) {
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                touchStartDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+            }
+        });
+
+        document.getElementById('map-container').addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                const touch = e.touches[0];
+                tx = initialTx + (touch.clientX - startX) / scale;
+                ty = initialTy + (touch.clientY - startY) / scale;
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                if (touchStartDistance) {
+                    scale *= currentDistance / touchStartDistance;
+                    scale = Math.max(0.5, Math.min(scale, 5));
+                    updateTransform();
+                }
+            }
+        });
+
+        document.getElementById('map-container').addEventListener('touchend', () => {
+            isDragging = false;
+            touchStartDistance = null;
+        });
+
+        // Wheel zoom
+        document.getElementById('map-container').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const rect = mapWrapper.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            tx = (tx + mouseX) * delta - mouseX;
+            ty = (ty + mouseY) * delta - mouseY;
+            scale *= delta;
+            scale = Math.max(0.5, Math.min(scale, 5));
+            updateTransform();
+        });
+
+        // Controls
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            scale *= 1.1;
+            updateTransform();
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            scale = Math.max(0.5, scale * 0.9);
+            updateTransform();
+        });
+
+        document.getElementById('rotate').addEventListener('click', () => {
+            rotation = (rotation + 90) % 360;
+            updateTransform();
+        });
+
+        // Annotation management
+        async function loadAnnotations() {
+            try {
+                const response = await fetch('/api/annotations');
+                if (response.ok) {
+                    const annotations = await response.json();
+                    document.querySelectorAll('.annotation').forEach(el => el.remove());
+                    annotations.forEach(ann => createAnnotation(ann));
+                }
+            } catch (error) {
+                console.error('Failed to load annotations:', error);
+            }
+        }
+
+        function createAnnotation(annotation) {
+            const div = document.createElement('div');
+            div.className = 'annotation';
+            div.style.left = `${annotation.x}px`;
+            div.style.top = `${annotation.y}px`;
+            div.textContent = annotation.text;
+            mapWrapper.appendChild(div);
+        }
+
+        // Right-click handler
+        document.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            if (!authBtn.textContent.includes('Logout')) return;
+
+            const rect = mapWrapper.getBoundingClientRect();
+            const matrix = new DOMMatrix(mapWrapper.style.transform);
+            const point = new DOMPoint(e.clientX - rect.left, e.clientY - rect.top)
+                .matrixTransform(matrix.inverse());
+
+            const text = prompt('Enter annotation text:');
+            if (text) {
+                try {
+                    const response = await fetch('/api/annotations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text, x: point.x, y: point.y })
+                    });
+                    
+                    if (response.ok) {
+                        const annotation = await response.json();
+                        createAnnotation(annotation);
+                    }
+                } catch (error) {
+                    console.error('Failed to save annotation:', error);
+                }
+            }
+        });
+
+        // Auth management
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/annotations');
+                authBtn.textContent = response.ok ? 'Logout' : 'Login';
+                if (response.ok) await loadAnnotations();
+                return response.ok;
+            } catch {
+                return false;
+            }
+        }
+
+        // Event listeners
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    document.getElementById('login-modal').style.display = 'none';
+                    await checkAuth();
+                }
+            } catch (error) {
+                console.error('Login failed:', error);
+            }
+        });
+
+        document.getElementById('close-modal').addEventListener('click', () => {
+            document.getElementById('login-modal').style.display = 'none';
+        });
+
+        authBtn.addEventListener('click', async () => {
+            if (authBtn.textContent === 'Logout') {
+                await fetch('/api/logout', { method: 'POST' });
+                authBtn.textContent = 'Login';
+                document.querySelectorAll('.annotation').forEach(el => el.remove());
+            } else {
+                document.getElementById('login-modal').style.display = 'block';
+            }
+        });
+
+        // Initial setup
+        checkAuth();
+        updateTransform();
+    </script>
+</body>
+</html>
